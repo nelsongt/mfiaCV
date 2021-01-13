@@ -85,7 +85,8 @@ ax2 = axes('Position',ax1.Position,...
 % Replace ticks with biases
 xlabel('Reverse Bias (V)','fontsize',14);
 xt = get(gca, 'XTick');
-xt2 = interp1(Deps,Biases,xt);
+[UniDeps index] = unique(Deps); % Small trick to avoid error in case of repeated values
+xt2 = interp1(UniDeps,Biases(index),xt);
 set(gca, 'XTickLabel', xt2);
 hold off;
 
