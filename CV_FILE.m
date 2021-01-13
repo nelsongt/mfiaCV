@@ -22,7 +22,7 @@ fprintf(fid, 'Temperature= %f\n', setTemperature);
 fprintf(fid, '[data]\n');
 fprintf(fid, 'bias(V)\tcap(F)\tres(Ohm)\n');
 for i=1:length(Biases)
-    fprintf(fid, '%e\t%e\t%e\n', Biases(i),Caps(i),Res(i)');
+    fprintf(fid, '%e\t%e\t%e\n',Biases(i),Caps(i),Res(i)');
 end
 fclose(fid);
 end
