@@ -5,7 +5,7 @@ format long
 % Setup PATH
 
 %%%%%%% Begin Main %%%%%%
-File_Name = 'GPD1-10VP0_80bad'
+File_Name = 'GPD7-10VP2_170'
 
 [Sample_Name,Area,Temp,Data] = FileRead(File_Name);
 total = length(Data);
@@ -26,52 +26,56 @@ cap_sqinv = cap_m .^ -2;
 
 %%% This section smoothes data in incremental moving sections, it
 %%% truncates the data based on smoothing value so it is somewhat incomplete. 
-%%% High smoothing can cause problems.
+%%% Adjust until satisfied
 
-% smoothing = 10; %must be even number
-% 
-% slopes = zeros(length(Biases)-smoothing,1);
-% smoothcaps = zeros(length(Biases)-smoothing,1);
-% for ii = 1:(length(Biases)-smoothing)
-%     fitdop = polyfit(Biases(ii:ii+smoothing),cap_sqinv(ii:ii+smoothing),2);
-%     %slopes(ii) = fitdop(1);
-%     derdop = polyder(fitdop);
-%     slopes(ii) = polyval(derdop,Biases(ii+smoothing/2));
-%     
-%     fitdep = polyfit(Biases(ii:ii+smoothing),Caps(ii:ii+smoothing),2);
-%     smoothcaps(ii) = polyval(fitdep,Biases(ii+smoothing/2));
-% end
+smoothing = 20; %must be even number
+
+slopes = zeros(length(Biases)-smoothing,1);
+smoothcaps = zeros(length(Biases)-smoothing,1);
+for ii = 1:(length(Biases)-smoothing)
+    fitdop = polyfit(Biases(ii:ii+smoothing),cap_sqinv(ii:ii+smoothing),2);
+    %slopes(ii) = fitdop(1);
+    derdop = polyder(fitdop);
+    slopes(ii) = polyval(derdop,Biases(ii+smoothing/2));
+    
+    fitdep = polyfit(Biases(ii:ii+smoothing),Caps(ii:ii+smoothing),2);
+    smoothcaps(ii) = polyval(fitdep,Biases(ii+smoothing/2));
+end
 
 %%% End of moving section smoothing
 
 %%% Following section fits the entire dataset to a polynomial before
 %%% processing, it works well for many occasions but sometimes incremental
-%%% smoothing is needed. If using this section comment out previous section
-%%% and vice versa.
+%%% smoothing is needed. Adjust along with 
 
-fitcap = polyfit(Biases,Caps,6);
-smoothcaps = polyval(fitcap,Biases);
+fitorder = 10;  % polynomial fit order
 
-fitdop = polyfit(Biases,cap_sqinv,6);
-derdop = polyder(fitdop);
-slopes = polyval(derdop,Biases);
+capfit = polyfit(Biases,Caps,fitorder);
+fitcaps = polyval(capfit,Biases);
 
-smoothing = 0; %keep this to 0 in this section
+dopfit = polyfit(Biases,cap_sqinv,fitorder);
+dopder = polyder(dopfit);
+fitslopes = polyval(dopder,Biases);
 
 %%% End of full segment smoothing
 
 Dops = (2e-6/(die_const*elem_char))* (slopes .^ -1);
 Deps = (area_m * 1e9 * die_const) ./ smoothcaps; %nm
+FitDops = (2e-6/(die_const*elem_char))* (fitslopes .^ -1);
+FitDeps = (area_m * 1e9 * die_const) ./ fitcaps; %nm
 
 
 %% Plotting
 figure
-plot(Deps,Dops);
+hold on
+plot(FitDeps,FitDops);
 xlabel('Distance From Junction (nm)','fontsize',14);
 ylabel('Doping (cm^{-3})','fontsize',14);
-set(gca, 'XScale', 'lin','xlim',[0 Deps(length(Deps))]);
+set(gca, 'XScale', 'lin','xlim',[min(FitDeps) max(FitDeps)]);
 set(gca, 'YScale', 'log','ylim',[1e14 1e18]);
 set(gca, 'YGrid', 'on', 'XGrid', 'on');
+plot(Deps,Dops);
+hold off
 
 
 
@@ -85,13 +89,13 @@ for nn = start:stop
     x2tik(jj) = nn*bias_step;
     jj = jj+1;
 end
-xtik = interp1(Biases(((smoothing/2)+1):length(Biases)-(smoothing/2)),Deps,x2tik);
+xtik = interp1(Biases,FitDeps,x2tik);
 
 
 figure
 hold on;
-plot(Deps,Dops);
-set(gca, 'XScale', 'lin','xlim',[Deps(1) Deps(length(Deps))]);
+plot(FitDeps,FitDops);
+set(gca, 'XScale', 'lin','xlim',[min(FitDeps) max(FitDeps)]);
 set(gca, 'YScale', 'log','ylim',[1e14 1e18]);
 %set(gca, 'YScale', 'log');
 set(gca, 'YGrid', 'on', 'XGrid', 'on');
@@ -104,7 +108,7 @@ set(gca,'position',pos);  % write the new values
 ax2 = axes('Position',ax1.Position,...
     'XAxisLocation','top',...
     'YAxisLocation','right',...
-    'xlim',[Deps(1) Deps(length(Deps))],...
+    'xlim',[min(FitDeps) max(FitDeps)],...
     'XTick',xtik,...
     'XScale','lin',...
     'Color','none',...
@@ -112,7 +116,7 @@ ax2 = axes('Position',ax1.Position,...
 % Replace ticks with biases
 xlabel('Reverse Bias (V)','fontsize',14);
 xt = get(gca, 'XTick');
-[UniDeps index] = unique(Deps); % Small trick to avoid error in case of repeated values
+[UniDeps index] = unique(FitDeps); % Small trick to avoid error in case of repeated values
 xt2 = interp1(UniDeps,Biases(index),xt);
 set(gca, 'XTickLabel', xt2);
 hold off;
