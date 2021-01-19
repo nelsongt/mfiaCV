@@ -5,7 +5,7 @@ format long
 % Setup PATH
 
 %%%%%%% Begin Main %%%%%%
-File_Name = 'GPD7-10VP2_170'
+File_Name = 'GPD1-10VPre_290'
 
 [Sample_Name,Area,Temp,Data] = FileRead(File_Name);
 total = length(Data);
@@ -17,7 +17,7 @@ die_const = vac_perm*rel_perm; %F/m
 area_m = Area * 1e-6; %m^2
 elem_char = 1.602e-19; %C
 
-%% Calculate Doping vs Depletion
+%%% Calculate Doping vs Depletion %%%
 Biases = Data(:,1);
 Caps = Data(:,2);
 
@@ -28,13 +28,12 @@ cap_sqinv = cap_m .^ -2;
 %%% truncates the data based on smoothing value so it is somewhat incomplete. 
 %%% Adjust until satisfied
 
-smoothing = 20; %must be even number
+smoothing = 10; %must be even number
 
 slopes = zeros(length(Biases)-smoothing,1);
 smoothcaps = zeros(length(Biases)-smoothing,1);
 for ii = 1:(length(Biases)-smoothing)
     fitdop = polyfit(Biases(ii:ii+smoothing),cap_sqinv(ii:ii+smoothing),2);
-    %slopes(ii) = fitdop(1);
     derdop = polyder(fitdop);
     slopes(ii) = polyval(derdop,Biases(ii+smoothing/2));
     
@@ -46,26 +45,35 @@ end
 
 %%% Following section fits the entire dataset to a polynomial before
 %%% processing, it works well for many occasions but sometimes incremental
-%%% smoothing is needed. Adjust along with 
+%%% smoothing is needed. Adjust along with above smoothing to find best fit
 
 fitorder = 10;  % polynomial fit order
 
-capfit = polyfit(Biases,Caps,fitorder);
-fitcaps = polyval(capfit,Biases);
+[capfit,S] = polyfit(Biases,cap_sqinv,fitorder);
+[fitcaps,delta] = polyval(capfit,Biases,S);
 
-dopfit = polyfit(Biases,cap_sqinv,fitorder);
-dopder = polyder(dopfit);
-fitslopes = polyval(dopder,Biases);
+dopfit = polyder(capfit);
+fitslopes = polyval(dopfit,Biases);
 
 %%% End of full segment smoothing
 
 Dops = (2e-6/(die_const*elem_char))* (slopes .^ -1);
 Deps = (area_m * 1e9 * die_const) ./ smoothcaps; %nm
 FitDops = (2e-6/(die_const*elem_char))* (fitslopes .^ -1);
-FitDeps = (area_m * 1e9 * die_const) ./ fitcaps; %nm
+FitDeps = (1e9 * die_const) ./ (fitcaps.^(-0.5)); %nm
 
 
-%% Plotting
+%%% Plotting %%%
+% Direct data fit plot %
+figure
+hold on
+plot(Biases,cap_sqinv, '+b')
+plot(Biases,fitcaps,'-r', Biases,fitcaps+delta,'-g', Biases,fitcaps-delta,'-g')
+grid
+hold off
+
+
+% Zoomable plot, check doping fits %
 figure
 hold on
 plot(FitDeps,FitDops);
@@ -79,7 +87,7 @@ hold off
 
 
 
-% No-zoom bias plot
+% No-zoom bias plot %
 %Setup tick marks
 bias_step = 1.0;
 jj = 1;
@@ -90,7 +98,6 @@ for nn = start:stop
     jj = jj+1;
 end
 xtik = interp1(Biases,FitDeps,x2tik);
-
 
 figure
 hold on;
@@ -113,7 +120,7 @@ ax2 = axes('Position',ax1.Position,...
     'XScale','lin',...
     'Color','none',...
     'ytick',[]);
-% Replace ticks with biases
+%Replace ticks with biases
 xlabel('Reverse Bias (V)','fontsize',14);
 xt = get(gca, 'XTick');
 [UniDeps index] = unique(FitDeps); % Small trick to avoid error in case of repeated values
